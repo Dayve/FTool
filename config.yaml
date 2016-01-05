@@ -1,0 +1,31 @@
+folders:
+    - /home/username/Downloads
+    - /home/username/nn/somefolder
+
+attributes:
+    wordDoc:
+        ext : .docx
+        name : doesnt_contain Something
+        size : over 200 B
+        mod : over 10 days
+
+    music:
+        ext : .mp3
+        name : contains by
+
+    logs:
+        ext : .log
+        size : under 800 kB
+
+actions:
+    backup_docs : {copy : /home/username/Documents/Backups}
+    move_music : {move : /home/user/Music}
+    remove : remove     #FIXME - doesn't make much sense
+
+rules:
+    word_doc : backup_docs
+    music : move_music
+    logs : remove
+
+lines : 5
+
