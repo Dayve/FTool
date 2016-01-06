@@ -45,7 +45,7 @@ class ConfigAttrib:
         self.filenameOp, self.filename = attribute['name'].split(' ', 1) if 'name' in attribute else ['','']
         self.ext = attribute['ext'] if 'ext' in attribute else ''
 
-        # Get modification time's and size's: inequality operator, number, unit
+        # Get inequality operator, number and unit for modification time and size:
         self.sizeOp, self.sizeNum, self.sizeUnit = attribute['size'].split() if 'size' in attribute else ['','','']
         self.modOp, self.modNum, self.modUnit = attribute['mod'].split() if 'mod' in attribute else ['','','']
 
@@ -198,7 +198,7 @@ path_labelPadding = 2
 columnsPadding = 6
 
 for folder in dataMap['folders']:
-    # Show full path to the current folder, as given in config file:
+    # Show the full path to current folder, as given in the config file:
     printc([("l_grey", ' '*3 + "-> " + folder.ljust(maxPathLen + path_labelPadding))], '')
 
     if os.path.exists(folder):
@@ -216,9 +216,9 @@ for folder in dataMap['folders']:
             toBeCopied = {}     # file (path & name) : destination path
             toBeRemoved = []    # list of files to be removed
 
-            # Go through files and check if a give file fulfills any attribute.
-            # If it does, then add it to corresponding list, and search the rules for corresponding actions.
-            # Then search the actions, get the right command and save it into proper queue:
+            # Go through files and check if a given file fulfills any attribute.
+            # If it does, then add it to the corresponding list, and search the rules for corresponding actions.
+            # Then search the actions, get the right command and save it into the proper queue:
 
             # Check if those files fulfill any "attributes": -------------------------------------------------
 
@@ -259,13 +259,12 @@ for folder in dataMap['folders']:
                 if alist:
                     nonEmptyLists[label] = alist
 
-            # If there are any non-empty lists calculate column width and length of the longest of them:
             if not nonEmptyLists:
                 printc([("orange", '\n'+' '*5+"[Nothing to do here]")], '\n')
             else:
                 # Show what we have to do: -------------------------------------------------------------------
 
-                # Save the taks list: (order matters and is important here)
+                # Save the task list: (order matters and is important here)
                 tasks[folder] = (toBeMoved, toBeCopied, toBeRemoved)
 
                 # Show folder ID:
