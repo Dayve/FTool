@@ -20,12 +20,11 @@ attributes:
 actions:
     backup_docs : {copy : /home/username/Documents/Backups}
     move_music : {move : /home/user/Music}
-    remove : remove     #FIXME - doesn't make much sense
 
 rules:
     word_doc : backup_docs
     music : move_music
     logs : remove
 
-lines : 5
+lines : 8
 

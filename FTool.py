@@ -2,6 +2,7 @@
 
 import yaml
 import os
+import shutil
 import re
 import sys
 import time
@@ -9,14 +10,7 @@ from datetime import date
 from datetime import datetime
 
 
-# TODO:
-# - divide code
-# - create FileList class
-# - handle performing actions
-# - clean up the code
-
-
-# Colored output: ------------------------------------------------------------------------------
+# Colored output: --------------------------------------------------------------------------------------------
 
 Cols = {
     "black"   : '\033[30m',
@@ -44,7 +38,8 @@ def printc(colorCaption_tuples, endchar):
     print("", end=endchar)
 
 
-# Attribute classes: ------------------------------------------------------------------------------
+# Attribute classes: -----------------------------------------------------------------------------------------
+
 class ConfigAttrib:
     def __init__(self, attribute):
         self.filenameOp, self.filename = attribute['name'].split(' ', 1) if 'name' in attribute else ['','']
@@ -81,7 +76,7 @@ class FileWithAttrib:
         }
 
 
-# Checking for attributes: -------------------------------------------------------------------------
+# Checking for attributes: -----------------------------------------------------------------------------------
 
 def checkIfFulfillsAttribute(filePathAndName, attribute):
     fulfills = []
@@ -96,6 +91,7 @@ def checkIfFulfillsAttribute(filePathAndName, attribute):
         else:
             fulfills.append(False)
 
+    # TODO: D.R.Y.
     # Filename:
     if configAttr.filename != '':                   # Skip if empty
         if configAttr.filenameOp == 'contains':
@@ -163,13 +159,12 @@ def checkIfFulfillsAttribute(filePathAndName, attribute):
     return True
 
 
-class FileList:             # TODO
-    def __init__(self):
-        # [(max(len(re.sub(folder + os.path.sep, '', element)) for element in queue) + columnsPadding) for queue in nonEmptyLists.values()]
-        pass
+# Check the command line arguments: --------------------------------------------------------------------------
+
+printOnly = '-p' in sys.argv
 
 
-# Load settings: -----------------------------------------------------------------------------------
+# Load the settings: -----------------------------------------------------------------------------------------
 
 printc([("yellow", " => Reading 'config.yaml'...")], '\n')
 
@@ -180,11 +175,11 @@ try:
         configFile.close()
 
 except IOError:
-    printc([("red", ' '*4 + "Can't open config file.")], '\n')
+    printc([("red", ' '*4 + "Can't open/find config file.")], '\n')
     sys.exit()
 
 
-# Look up for files: -------------------------------------------------------------------------------
+# Look up for files: -----------------------------------------------------------------------------------------
 
 # Length (number of characters) in the longest path:
 maxPathLen = max(len(folder) for folder in dataMap['folders'])
@@ -195,9 +190,12 @@ printc([("yellow", " => Chosen folders:")], '\n')
 folderIDs = {}
 ID = 1
 
+# Tasks which will be performed after showing lists:
+tasks = {}
+
 # Some unimportant padding variables:
 path_labelPadding = 2
-columnsPadding = 2
+columnsPadding = 6
 
 for folder in dataMap['folders']:
     # Show full path to the current folder, as given in config file:
@@ -222,25 +220,29 @@ for folder in dataMap['folders']:
             # If it does, then add it to corresponding list, and search the rules for corresponding actions.
             # Then search the actions, get the right command and save it into proper queue:
 
+            # Check if those files fulfill any "attributes": -------------------------------------------------
+
             for afile in fileList:
                 for attrSetK, attrSetV in dataMap['attributes'].items():
                     if checkIfFulfillsAttribute(afile, attrSetV):
+                        # Search for the rules matching with attribute:
                         for ruleSetK, ruleSetV in dataMap['rules'].items():
                             if ruleSetK == attrSetK:
-                                for actionSetK, actionSetV in dataMap['actions'].items():
-                                    if actionSetK == ruleSetV:
-                                        if type(actionSetV) == dict:
+                                if ruleSetV == 'remove':
+                                    toBeRemoved.append(afile)
+                                else:
+                                    # Else we have to do with dictionary-type action:
+                                    for actionSetK, actionSetV in dataMap['actions'].items():
+                                        if actionSetK == ruleSetV:
+                                            if type(actionSetV) == dict:
 
-                                            command, destPath = list(actionSetV.keys())[0], list(actionSetV.values())[0]
+                                                # Get data from one-item anonymous dictionary:
+                                                command, destPath = list(actionSetV.keys())[0], list(actionSetV.values())[0]
 
-                                            if command == 'copy':
-                                                toBeCopied[afile] = destPath
-                                            elif command == 'move':
-                                                toBeMoved[afile] = destPath
-
-                                        elif type(actionSetV) == str:
-                                            # Assume that this other type is string and the caption is "remove"
-                                            toBeRemoved.append(afile)
+                                                if command == 'copy':
+                                                    toBeCopied[afile] = destPath
+                                                elif command == 'move':
+                                                    toBeMoved[afile] = destPath
 
 
             # Print out the list of files, but not full, only the first few: (amount specified in config file)
@@ -261,32 +263,69 @@ for folder in dataMap['folders']:
             if not nonEmptyLists:
                 printc([("orange", '\n'+' '*5+"[Nothing to do here]")], '\n')
             else:
-                printc([("l_cyan", "[%d]" % ID)], '\n')
-                folderIDs[folder] = ID ; ID += 1
+                # Show what we have to do: -------------------------------------------------------------------
 
-                # TODO/FIXME: colW is the same for each list, but the filenames are not -> solution: FileList class
-                colW = max(len(re.sub(folder + os.path.sep, '', element)) for queue in nonEmptyLists.values() for element in queue) + columnsPadding
+                # Save the taks list: (order matters and is important here)
+                tasks[folder] = (toBeMoved, toBeCopied, toBeRemoved)
+
+                # Show folder ID:
+                printc([("l_cyan", "[%d]" % ID)], '\n')
+                folderIDs[ID] = folder ; ID += 1
+
+                # Calculate a column width (based on the lenghts of filenames that will be displayed) for every list and the length of the longest list:
+                # (Came out a little illegible tho...)
+                colW =  {label : (max([len(re.sub(folder + os.path.sep, '', element)) for element in queue[:dataMap['lines']]]) + columnsPadding) for (label, queue) in nonEmptyLists.items()}
                 longestListLen = max(len(queue) for queue in nonEmptyLists.values())
 
                 # Print out labels for non-empty lists:
-                labels = ['MOVE:', 'COPY:', 'REMOVE:']  # <--Order
+                labels = ['MOVE:', 'COPY:', 'REMOVE:']  #(order matters)
 
                 print(' '*5, end='')
                 for label in labels:
                     if label in nonEmptyLists:
-                        printc([("orange", label.ljust(colW))], '')
+                        printc([("orange", label.ljust(colW[label]))], '')
                 print()
+
+                # Print out the lists themselves:
+                positionsLeft = {label : 0 for label in labels}     # Number of files that are not displayed
+                nuff = False                                        # Boolean for checking if we already displayed enough
 
                 for j in range(longestListLen):
                     print(' '*5, end='')
-                    for alist in [nonEmptyLists.get(label) for label in labels if nonEmptyLists.get(label) is not None]:
+
+                    # The list below is constructed that way for the elements to remain in the order:
+                    # (The if clause is there, because .get will return "None" if the key is not in the dictionary)
+                    for (label, alist) in [(label, nonEmptyLists.get(label)) for label in labels if nonEmptyLists.get(label) is not None]:
                         if j >= len(alist):
-                            print(' '*colW, end="")
+                            print(' '*colW[label], end="")
                         else:
-                            print(re.sub(folder + os.path.sep, '', alist[j]).ljust(colW), end="")
+                            print(re.sub(folder + os.path.sep, '', alist[j]).ljust(colW[label]), end="")
+
+                            # We're supposed to print out the amount of files specified in the config file as 'lines':
+                            if j+1 >= dataMap['lines']:
+                                nuff = True
+                                positionsLeft[label] = len(alist)-(j+1)
                     print()
+
+                    if nuff:
+                        break
+
+                # Print out the information about the amount of remaining (not displayed) files:
+                wereAnyRemaining = False
+                print(' '*5, end='')
+
+                for label in labels:
+                    if label in nonEmptyLists:
+                        if positionsLeft[label] > 0:
+                            printc([("orange", "And %d other(s)".ljust(colW[label]) % positionsLeft[label])], '')
+                            wereAnyRemaining = True
+                        else:
+                            print(' '*colW[label], end="")
+                if wereAnyRemaining:
+                    print()
+
         else:
-            printc([("orange", '\n'+' '*5+"[Directory is empty]")], '\n')
+            printc([("l_green", '\n'+' '*5+"[Directory is empty]")], '\n')
 
     else:
         printc([("red", '\n'+' '*5+"[Directory not found]")], '\n')
@@ -294,7 +333,55 @@ for folder in dataMap['folders']:
     print()
 
 
-# Perform actions: -------------------------------------------------------------------------------
-# TODO
+# Ask: -------------------------------------------------------------------------------------------------------
+
+printc([("yellow", " => Choose the actions to be perfored now (enter a letter):")], '\n')
+printc([("l_grey", ' '*4 + "[A]ll  [NUMBER]-th folder only  [N]one  [M]ove  [C]opy  [R]emove  ->")], '')
+choice = input()
+print()     # In case user decides to redirect output to file
+
+
+# Perform actions: -------------------------------------------------------------------------------------------
+
+# Check if the user's input is a number (ID):
+try:
+    givenID = int(choice)
+    if givenID in folderIDs:
+        byID = True
+    else:
+        choice = 'N'
+
+except ValueError:
+    givenID = 0
+    byID = False
+
+
+if choice != 'N':
+    # Find the longest paths' lengths: (for print-only mode)
+    if printOnly:
+        maxPathL = max(len(path) for t3Tuple in tasks.values() for path in list(t3Tuple[0].keys()) + list(t3Tuple[0].keys()))
+
+    # Perform actions: (or just print them out)
+    for tFolder, t3Tuple in tasks.items():
+        if choice in ['A','a','M','m'] or (byID and tFolder == folderIDs[givenID]):
+            for afile, itsDest in t3Tuple[0].items():   # toBeMoved dictionary
+                if printOnly:
+                    print(' '*4 + "MOVE:   %s to %s" % (afile.ljust(maxPathL), itsDest))
+                else:
+                    shutil.move(afile, itsDest)
+
+        if choice in ['A','a','C','c'] or (byID and tFolder == folderIDs[givenID]):
+            for afile, itsDest in t3Tuple[1].items():   # toBeCopied dictionary
+                if printOnly:
+                    print(' '*4 + "COPY:   %s to %s" % (afile.ljust(maxPathL), itsDest))
+                else:
+                    shutil.copy(afile, itsDest)
+
+        if choice in ['A','a','R','r'] or (byID and tFolder == folderIDs[givenID]):
+            for filename in t3Tuple[2]:                 # toBeRemoved list
+                if printOnly:
+                    print(' '*4 + "REMOVE: %s" % filename)
+                else:
+                    os.remove(filename)
 
 
