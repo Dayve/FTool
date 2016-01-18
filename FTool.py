@@ -68,7 +68,7 @@ class FileWithAttrib:
         }
 
         # And modification time:
-        modTimestamp = os.path.getctime(filePathAndName)
+        modTimestamp = os.path.getmtime(filePathAndName)
 
         self.mod = {
             'days' : (date.today() - date.fromtimestamp(modTimestamp)).days,
@@ -273,7 +273,7 @@ for folder in dataMap['folders']:
 
                 # Calculate a column width (based on the lenghts of filenames that will be displayed) for every list and the length of the longest list:
                 # (Came out a little illegible tho...)
-                colW =  {label : (max([len(re.sub(folder + os.path.sep, '', element)) for element in queue[:dataMap['lines']]]) + columnsPadding) for (label, queue) in nonEmptyLists.items()}
+                colW =  {label : (max(len(re.sub(folder + os.path.sep, '', element)) for element in queue[:dataMap['lines']]) + columnsPadding) for (label, queue) in nonEmptyLists.items()}
                 longestListLen = max(len(queue) for queue in nonEmptyLists.values())
 
                 # Print out labels for non-empty lists:
